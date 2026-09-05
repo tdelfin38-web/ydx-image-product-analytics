@@ -1,231 +1,99 @@
 # Анализ поиска в Яндекс.Картинках
 
-## Данные и метод 
+> Тестовое задание на позицию продуктового аналитика. SQL-анализ поведения пользователей поиска по картинкам на `desktop` и `touch`.
 
-Данные охватывают период с 1 сентября 2021 года 00:00:00 до 21 сентября 2021 года 23:59:59 по московскому времени.
+![PostgreSQL](https://img.shields.io/badge/SQL-PostgreSQL-336791?logo=postgresql&logoColor=white) ![DataLens](https://img.shields.io/badge/BI-Yandex%20DataLens-FFCC00)
 
-### SQL-запрос
+## Ситуация и задача
 
-```sql
-SELECT
-    MIN(event_at) AS first_event_at,
-    MAX(event_at) AS last_event_at,
-    COUNT(*) AS events_count
-FROM search_events;
-```
+### Контекст
 
-## Запрос «ютуб» по платформам 
+Поведение пользователей поиска может различаться в зависимости от устройства. Это влияет на то, какие сценарии и форматы выдачи стоит развивать для `desktop` и `touch`.
 
-1. В абсолютных значениях разница по количеству запросов небольшая: 806 на desktop и 732 на touch.
-2. При учете разного объема трафика значение стат. значимо: Доля запроса "ютуб" составляет 0,208% на desktop и 0,101% на touch.
-3. Платформа touch проигрывает по объему запросов платформе desktop, скорее всего, в связи с альтернативным путем достижения цели - прямым переходом через приложение.
+### Задача
 
-### SQL-запросы
+Проверить гипотезу: **интересы пользователей поиска по картинкам на мобильных устройствах и компьютерах заметно отличаются**.
 
-Общий объём поисковых событий по платформам:
+Для этого нужно было определить период данных, сравнить запрос «ютуб», изучить топ-10 запросов и суточный профиль, а затем выделить тематики с различающимися долями.
 
-```sql
-SELECT
-    pl.platform_name,
-    COUNT(*) AS events_count
-FROM search_events AS ev
-JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-GROUP BY pl.platform_name
-ORDER BY events_count DESC;
-```
+### Ограничения
 
-Количество запросов, содержащих «ютуб»:
+- В выборке нет данных о пользователях, сессиях, кликах и удовлетворённости выдачей.
+- Тематики определены правилами по ключевым словам, а не ML-классификатором.
+- Анализ показывает связь с платформой, но не доказывает её причину.
 
-```sql
-SELECT
-    pl.platform_name,
-    COUNT(*) AS youtube_queries
-FROM search_events AS ev
-JOIN search_queries AS qu ON qu.query_id = ev.query_id
-JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-WHERE LOWER(qu.query_text) LIKE '%ютуб%'
-GROUP BY pl.platform_name
-ORDER BY youtube_queries DESC;
-```
+### Критерий успеха
+
+Сформулировать воспроизводимый анализ и отделить наблюдаемые различия от продуктовых гипотез.
+
+## Данные и подход
+
+| Показатель | Значение |
+| --- | ---: |
+| Период | 1–21 сентября 2021 года |
+| Поисковых событий | 1 114 365 |
+| Доля `touch` | 65,16% |
+| Доля `desktop` | 34,84% |
+
+Я подготовил SQL-запросы в PostgreSQL, разделил абсолютные объёмы и относительные доли, а затем собрал итоговые таблицы и интерактивные графики в Yandex DataLens.
+
+## Инсайты
+
+### 1. Запрос «ютуб» сам по себе не объясняет разницу между платформами
+
+В абсолютных значениях запрос встречался 806 раз на `desktop` и 732 раза на `touch`. При нормализации на объём трафика его доля выше на `desktop`: 0,208% против 0,101%.
 
 ![Запросы «ютуб» по платформам](01_youtube_by_platform.png)
 
-[Открыть интерактивный график в DataLens](https://datalens.yandex/phuqunclc9xc8)
+[Открыть график в DataLens](https://datalens.yandex/phuqunclc9xc8)
 
-## Топ-10 запросов 
+### 2. У платформ различается контекст использования
 
-1. На desktop в топе преимущественно находятся справочные и учебные запросы «календарь 2021», «таблица менделеева», «английский алфавит» и «таблица квадратов».
-2. На touch в топе поздравления, погода, игры, фильмы, музыка и новости.
-3. График указывает на разный контекст использования: Desktop чаще задействован для целенаправленного поиска и наиболее подходит для представления пользователю расширенных ответов при запросе, touch чаще используется для быстрых повседневных задач.
-
-### SQL-запрос
-
-```sql
-WITH ranked AS (
-    SELECT
-        pl.platform_name,
-        qu.query_text,
-        COUNT(*) AS queries_count,
-        ROW_NUMBER() OVER (
-            PARTITION BY pl.platform_name
-            ORDER BY COUNT(*) DESC, qu.query_text
-        ) AS rank_in_platform
-    FROM search_events AS ev
-    JOIN search_queries AS qu ON qu.query_id = ev.query_id
-    JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-    GROUP BY pl.platform_name, qu.query_text
-), ranked_top AS (
-    SELECT
-        platform_name,
-        rank_in_platform,
-        query_text,
-        queries_count,
-        ROW_NUMBER() OVER (
-            ORDER BY queries_count ASC, platform_name, query_text
-        ) AS sort_order_asc
-    FROM ranked
-    WHERE rank_in_platform <= 10
-)
-SELECT
-    platform_name,
-    rank_in_platform,
-    query_text,
-    queries_count,
-    sort_order_asc
-FROM ranked_top
-ORDER BY sort_order_asc;
-```
+В топе `desktop` преобладают учебные и справочные запросы: «календарь 2021», «таблица Менделеева», «английский алфавит». На `touch` — погода, поздравления, игры, фильмы, музыка и новости.
 
 ![Топ-10 запросов по платформам](02_top_queries_by_platform.png)
 
-[Открыть интерактивный график в DataLens](https://datalens.yandex/yq310ppjnnomh)
+[Открыть график в DataLens](https://datalens.yandex/yq310ppjnnomh)
 
-## Распределение запросов по часам 
+### 3. Суточные паттерны тоже различаются
 
-1. Touch преобладает по количеству запросов над desktop на протяжении всего дня.
-2. На desktop активность сильнее сосредоточена в дневные часы и достигает пика в 16:00.
-3. На touch активность сосредотачивается в двух периодах: утреннем с 7:00 до 10:00 и вечернем с 19:00 до 21:00, пик наблюдается в 20:00.
-4. Desktop чаще используется днём для работы или учёбы, в то время как touch больше участвует в повседневных задачах утром и вечером.
-
-### SQL-запрос
-
-```sql
-WITH hourly AS (
-    SELECT
-        pl.platform_name,
-        EXTRACT(HOUR FROM ev.event_at AT TIME ZONE 'Europe/Moscow')::int AS hour_of_day,
-        COUNT(*) AS queries_count
-    FROM search_events AS ev
-    JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-    GROUP BY pl.platform_name, hour_of_day
-)
-SELECT
-    platform_name,
-    hour_of_day,
-    queries_count,
-    ROUND(
-        100.0 * queries_count / SUM(queries_count) OVER (PARTITION BY platform_name),
-        2
-    ) AS queries_share_pct
-FROM hourly
-ORDER BY platform_name, hour_of_day;
-```
+Активность на `desktop` сильнее сосредоточена днём, с пиком в 16:00. На `touch` выделяются утренний и вечерний пики: 7:00–10:00 и 19:00–21:00.
 
 ![Распределение запросов по часам](03_hourly_distribution.png)
 
-[Открыть интерактивный график в DataLens](https://datalens.yandex/jbomzhliz7us2)
+[Открыть график в DataLens](https://datalens.yandex/jbomzhliz7us2)
 
-## Контрастные тематики
+### 4. Контрастные тематики подтверждают гипотезу на описательном уровне
 
-1. На touch выше доля запросов про «кино и сериалы» и «дом и интерьер», это 1,31% против 0,67% и 0,69% против 0,38% на desktop - мобильный поиск чаще используют для досуга и повседневных задач.
-2. На desktop выше доля запросов про учёбу, она составляет 0,96% против 0,55% на touch, это соответствует гипотезе про более подробный поиск информации при использовании desktop.
-3. По запросам про животных заметной разницы между платформами нет.
-
-### SQL-запрос
-
-```sql
-WITH themed_events AS (
-    SELECT
-        pl.platform_name,
-        CASE
-            WHEN LOWER(qu.query_text) ~ '(фильм|сериал|кино)' THEN 'кино и сериалы'
-            WHEN LOWER(qu.query_text) ~ '(собака|кот|кошка|животн)' THEN 'животные'
-            WHEN LOWER(qu.query_text) ~ '(диван|кухн|интерьер|дизайн)' THEN 'дом и интерьер'
-            WHEN LOWER(qu.query_text) ~ '(школ|урок|учеб)' THEN 'учёба'
-            ELSE 'прочее'
-        END AS topic
-    FROM search_events AS ev
-    JOIN search_queries AS qu ON qu.query_id = ev.query_id
-    JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-), topic_shares AS (
-    SELECT
-        platform_name,
-        topic,
-        COUNT(*) AS queries_count,
-        100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY platform_name) AS share_pct
-    FROM themed_events
-    GROUP BY platform_name, topic
-)
-SELECT
-    topic,
-    MAX(queries_count) FILTER (WHERE platform_name = 'desktop') AS desktop_queries,
-    MAX(queries_count) FILTER (WHERE platform_name = 'touch') AS touch_queries,
-    ROUND(MAX(share_pct) FILTER (WHERE platform_name = 'desktop'), 2) AS desktop_share_pct,
-    ROUND(MAX(share_pct) FILTER (WHERE platform_name = 'touch'), 2) AS touch_share_pct,
-    ROUND(
-        MAX(share_pct) FILTER (WHERE platform_name = 'touch')
-        - MAX(share_pct) FILTER (WHERE platform_name = 'desktop'),
-        2
-    ) AS touch_minus_desktop_pp
-FROM topic_shares
-GROUP BY topic
-ORDER BY ABS(
-    MAX(share_pct) FILTER (WHERE platform_name = 'touch')
-    - MAX(share_pct) FILTER (WHERE platform_name = 'desktop')
-) DESC;
-```
+| Тематика | `touch` | `desktop` | Интерпретация |
+| --- | ---: | ---: | --- |
+| Кино и сериалы | 1,31% | 0,67% | Мобильный поиск чаще связан с досугом |
+| Дом и интерьер | 0,69% | 0,38% | Повседневные сценарии сильнее выражены на `touch` |
+| Учёба | 0,55% | 0,96% | На `desktop` выше доля учебных задач |
 
 ![Контрастные тематики](04_contrast_topics.png)
 
-[Открыть интерактивный график в DataLens](https://datalens.yandex/h9ml6y7tger40)
+[Открыть график в DataLens](https://datalens.yandex/h9ml6y7tger40)
 
-## Контрастные тематики и прочее
+## Продуктовые гипотезы
 
-Контрастные тематики занимают 3,67% всего трафика. На desktop приходится 1,14%, на touch приходится 2,53%. Остальные 96,33% запросов входят в группу «прочее». 
+1. Для `touch` стоит проверять более быстрый доступ к повседневным и развлекательным сценариям: компактные блоки, продолжение недавнего поиска, адаптация выдачи под короткие сессии.
+2. Для `desktop` стоит проверить более развёрнутую подачу справочной и учебной информации.
+3. Перед внедрением нужны продуктовые эксперименты с метриками кликов, глубины поиска и удовлетворённости выдачей.
 
-### SQL-запрос
+## Что получилось
 
-```sql
-WITH themed_events AS (
-    SELECT
-        pl.platform_name,
-        CASE
-            WHEN LOWER(qu.query_text) ~ '(фильм|сериал|кино|собака|кот|кошка|животн|диван|кухн|интерьер|дизайн|школ|урок|учеб)'
-                THEN 'Контрастные тематики'
-            ELSE 'Прочее'
-        END AS query_group
-    FROM search_events AS ev
-    JOIN search_queries AS qu ON qu.query_id = ev.query_id
-    JOIN platforms AS pl ON pl.platform_id = ev.platform_id
-)
-SELECT
-    query_group,
-    platform_name,
-    COUNT(*) AS queries_count,
-    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS all_queries_share_pct
-FROM themed_events
-GROUP BY query_group, platform_name
-ORDER BY query_group, platform_name;
-```
+Гипотеза поддержана на описательном уровне: топы запросов, доли тематик и суточные профили различаются между платформами. Результат анализа — не готовое решение, а обоснованный список гипотез для дальнейшей проверки.
 
-![Контрастные тематики и прочее](05_topic_coverage.png)
+## Артефакты
 
-[Открыть интерактивный график в DataLens](https://datalens.yandex/ogvqlhyhsq2a7)
+| Материал | Что внутри |
+| --- | --- |
+| [SQL-скрипт](analysis.sql) | Воспроизводимые PostgreSQL-запросы |
+| [Excel с результатами](Результаты_анализа.xlsx) | Сводные таблицы и визуализации |
+| [Общий обзор данных](00_Общий_обзор_данных.csv) | Период, объём и распределение трафика |
+| [Визуализации и CSV](.) | Данные и графики для каждого этапа анализа |
 
-## Итог
+## Навыки
 
-1. В выборке 1 114 365 поисковых событий.
-2. На touch приходится 65,16% трафика, на desktop приходится 34,84%.
-3. В топе touch преобладают повседневные и развлекательные запросы, в топе desktop преобладают учебные и справочные.
-4. Desktop активнее днём, touch активнее с утра и вечером.
-5. Touch — основной канал для повседневных и развлекательных сценариев, а desktop — для учебных и справочных задач.
+`SQL` · `PostgreSQL` · `оконные функции` · `CTE` · `продуктовая аналитика` · `Yandex DataLens` · `визуализация` · `формирование гипотез`
