@@ -1,8 +1,8 @@
-# Анализ поиска в Яндекс.Картинках
+# SQL-анализ и визуализация поисковых метрик
 
-> Тестовое задание на позицию продуктового аналитика. SQL-анализ поведения пользователей поиска по картинкам на `desktop` и `touch`.
+> Учебный pet-project по SQL и визуализации данных: анализ поведения пользователей поиска на `desktop` и `touch`.
 
-![PostgreSQL](https://img.shields.io/badge/SQL-PostgreSQL-336791?logo=postgresql&logoColor=white) ![DataLens](https://img.shields.io/badge/BI-Yandex%20DataLens-FFCC00)
+![PostgreSQL](https://img.shields.io/badge/SQL-PostgreSQL-336791?logo=postgresql&logoColor=white) ![Visualization](https://img.shields.io/badge/BI-data%20visualization-FFCC00)
 
 ## Ситуация и задача
 
@@ -29,7 +29,7 @@
 | Доля `touch` | 65,16% |
 | Доля `desktop` | 34,84% |
 
-Я подготовил SQL-запросы в PostgreSQL, разделил абсолютные объёмы и относительные доли, а затем собрал итоговые таблицы и интерактивные графики в Yandex DataLens.
+Я подготовил SQL-запросы в PostgreSQL, разделил абсолютные объёмы и относительные доли, а затем собрал итоговые таблицы и интерактивные графики в BI-инструменте.
 
 ## Инсайты
 
@@ -39,7 +39,7 @@
 
 ![Запросы «ютуб» по платформам](01_youtube_by_platform.png)
 
-[Открыть график в DataLens](https://datalens.yandex/phuqunclc9xc8)
+[Открыть интерактивную визуализацию](https://datalens.yandex/phuqunclc9xc8)
 
 ### 2. У платформ различается контекст использования
 
@@ -47,7 +47,7 @@
 
 ![Топ-10 запросов по платформам](02_top_queries_by_platform.png)
 
-[Открыть график в DataLens](https://datalens.yandex/yq310ppjnnomh)
+[Открыть интерактивную визуализацию](https://datalens.yandex/yq310ppjnnomh)
 
 ### 3. Суточные паттерны тоже различаются
 
@@ -55,7 +55,7 @@
 
 ![Распределение запросов по часам](03_hourly_distribution.png)
 
-[Открыть график в DataLens](https://datalens.yandex/jbomzhliz7us2)
+[Открыть интерактивную визуализацию](https://datalens.yandex/jbomzhliz7us2)
 
 ### 4. Контрастные тематики подтверждают гипотезу на описательном уровне
 
@@ -67,7 +67,7 @@
 
 ![Контрастные тематики](04_contrast_topics.png)
 
-[Открыть график в DataLens](https://datalens.yandex/h9ml6y7tger40)
+[Открыть интерактивную визуализацию](https://datalens.yandex/h9ml6y7tger40)
 
 ## Продуктовые гипотезы
 
@@ -90,4 +90,4 @@
 
 ## Навыки
 
-`SQL` · `PostgreSQL` · `оконные функции` · `CTE` · `продуктовая аналитика` · `Yandex DataLens` · `визуализация` · `формирование гипотез`
+`SQL` · `PostgreSQL` · `оконные функции` · `CTE` · `анализ данных` · `BI-визуализация` · `визуализация метрик` · `формирование гипотез`
